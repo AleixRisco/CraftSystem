@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Prototipo Crafting v.1</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .version-label { font-size: 14px; margin-bottom: 10px; color: #666; }
+    .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    #materials-list, #added-list { border: 1px solid #ccc; padding: 10px; }
+    .material-item, .added-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .material-item img, .added-item img { width: 32px; height: 32px; margin-right: 10px; }
+    #merge-btn { margin-top: 20px; padding: 8px 16px; font-size: 16px; }
+    #new-materials { margin-top: 30px; }
+    .new-material { display: flex; align-items: center; margin-bottom: 10px; }
+    .new-material img { width: 32px; height: 32px; margin-right: 10px; }
+  </style>
+</head>
+<body>
+  <div id="versionLabel" class="version-label"></div>
+  <div class="container">
+    <div id="materials-list"><h3>Materiales Disponibles</h3></div>
+    <div id="added-list"><h3>Materiales Añadidos</h3></div>
+  </div>
+  <button id="merge-btn">Fusionar</button>
+  <div id="new-materials"><h3>Material Nuevo</h3></div>
+  <script>
+    document.getElementById('versionLabel').textContent = 'v.1 | ' + new Date().toLocaleString('es-ES');
+    const totalQuantities = {};
+    const addedQuantities = {};
+    let materials = [];
+
+    async function loadMaterials() {
+      const ids = await fetch('data/materials.json').then(r => r.json());
+      materials = await Promise.all(ids.map(id => fetch(`data/material_${id}.json`).then(r => r.json())));
+      materials.forEach(m => {
+        totalQuantities[m.id] = 0;
+        addedQuantities[m.id] = 0;
+      });
+      renderMaterialsList();
+      renderAddedList();
+    }
+
+    function renderMaterialsList() {
+      const container = document.getElementById('materials-list');
+      container.innerHTML = '<h3>Materiales Disponibles</h3>';
+      materials.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'material-item';
+        div.innerHTML = `
+          <div style="display:flex;align-items:center;">
+            <img src="${m.image}" alt="${m.name}">
+            <span>${m.name} (Total: ${totalQuantities[m.id]})</span>
+          </div>
+          <button data-id="${m.id}">Añadir</button>
+        `;
+        div.querySelector('button').addEventListener('click', () => {
+          const qty = parseInt(prompt('Cantidad a añadir:', '1'));
+          if (!isNaN(qty) && qty > 0) {
+            addedQuantities[m.id] += qty;
+            renderAddedList();
+          }
+        });
+        container.appendChild(div);
+      });
+    }
+
+    function renderAddedList() {
+      const container = document.getElementById('added-list');
+      container.innerHTML = '<h3>Materiales Añadidos</h3>';
+      materials.forEach(m => {
+        if (addedQuantities[m.id] > 0) {
+          const div = document.createElement('div');
+          div.className = 'added-item';
+          div.innerHTML = `
+            <div style="display:flex;align-items:center;">
+              <img src="${m.image}" alt="${m.name}">
+              <span>${m.name} x ${addedQuantities[m.id]}</span>
+            </div>
+          `;
+          container.appendChild(div);
+        }
+      });
+    }
+
+    document.getElementById('merge-btn').addEventListener('click', () => {
+      const merged = materials.filter(m => addedQuantities[m.id] > 0);
+      if (merged.length === 0) {
+        alert('Añade materiales primero.');
+        return;
+      }
+      const totalQty = merged.reduce((sum, m) => sum + addedQuantities[m.id], 0);
+      const names = merged.map(m => m.name).join(' + ');
+      const imgSrc = merged[0].image;
+      totalQuantities[merged[0].id] += totalQty;
+      const nmDiv = document.createElement('div');
+      nmDiv.className = 'new-material';
+      nmDiv.innerHTML = `<img src="${imgSrc}" alt="Fusion">
+                         <span>Material Nuevo: ${names} x ${totalQty}</span>`;
+      document.getElementById('new-materials').appendChild(nmDiv);
+      // Reset added
+      merged.forEach(m => addedQuantities[m.id] = 0);
+      renderAddedList();
+      renderMaterialsList();
+    });
+
+    window.addEventListener('DOMContentLoaded', loadMaterials);
+  </script>
+</body>
+</html>
