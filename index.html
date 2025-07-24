@@ -2,25 +2,25 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Prototipo Crafting v.2</title>
+  <title>Prototipo Crafting v.3</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .version-label { font-size: 14px; margin-bottom: 10px; color: #666; }
-    .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    #materials-list, #added-list { border: 1px solid #ccc; padding: 10px; }
-    .material-item, .added-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    .material-item img, .added-item img { width: 32px; height: 32px; margin-right: 10px; }
-    input.qty-input { width: 50px; margin-right: 5px; }
-    button.add-btn:enabled { background-color: orange; color: white; border: none; padding: 5px 10px; cursor: pointer; }
-    button.add-btn:disabled { background-color: #ccc; color: #666; border: none; padding: 5px 10px; }
-    #merge-btn { margin-top: 20px; padding: 8px 16px; font-size: 16px; }
-    #new-materials { margin-top: 30px; }
-    .new-material { display: flex; align-items: center; margin-bottom: 10px; }
-    .new-material img { width: 32px; height: 32px; margin-right: 10px; }
+    body {{ font-family: Arial, sans-serif; margin: 20px; }}
+    .version-label {{ font-size: 14px; margin-bottom: 10px; color: #666; }}
+    .container {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }}
+    #materials-list, #added-list {{ border: 1px solid #ccc; padding: 10px; }}
+    .material-item, .added-item {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }}
+    .material-item img, .added-item img {{ width: 32px; height: 32px; margin-right: 10px; }}
+    input.qty-input {{ width: 50px; margin-right: 5px; }}
+    button.add-btn:enabled {{ background-color: orange; color: white; border: none; padding: 5px 10px; cursor: pointer; }}
+    button.add-btn:disabled {{ background-color: #ccc; color: #666; border: none; padding: 5px 10px; }}
+    #merge-btn {{ margin-top: 20px; padding: 8px 16px; font-size: 16px; }}
+    #new-materials {{ margin-top: 30px; }}
+    .new-material {{ display: flex; align-items: center; margin-bottom: 10px; }}
+    .new-material img {{ width: 32px; height: 32px; margin-right: 10px; }}
   </style>
 </head>
 <body>
-  <div id="versionLabel" class="version-label"></div>
+  <div id="versionLabel" class="version-label">v.3 | 24/07/2025 17:02:05</div>
   <div class="container">
     <div id="materials-list"><h3>Materiales Disponibles</h3></div>
     <div id="added-list"><h3>Materiales Añadidos</h3></div>
@@ -28,36 +28,28 @@
   <button id="merge-btn">Fusionar</button>
   <div id="new-materials"><h3>Material Nuevo</h3></div>
   <script>
-    // Set version label with timestamp
-    document.getElementById('versionLabel').textContent = 'v.2 | ' + new Date().toLocaleString('es-ES');
-
-    const totalQuantities = {};
-    const addedQuantities = {};
+    const MAX_ADD = 3;
+    const totalQuantities = {}, addedQuantities = {};
     let materials = [];
 
     async function loadMaterials() {
       const ids = await fetch('data/materials.json').then(r => r.json());
       materials = await Promise.all(ids.map(id => fetch(`data/material_${id}.json`).then(r => r.json())));
-      // Load player inventory
       const playerData = await fetch('data/player-data.json').then(r => r.json());
-      materials.forEach(m => {
-        totalQuantities[m.id] = playerData[m.id] || 0;
-        addedQuantities[m.id] = 0;
-      });
+      materials.forEach(m => { totalQuantities[m.id] = playerData[m.id] || 0; addedQuantities[m.id] = 0; });
       renderMaterialsList();
       renderAddedList();
+    }
+
+    function getTotalAdded() {
+      return Object.values(addedQuantities).reduce((sum, v) => sum + v, 0);
     }
 
     function updateAddButton(id) {
       const input = document.querySelector(`input.qty-input[data-id="${id}"]`);
       const btn = document.querySelector(`button.add-btn[data-id="${id}"]`);
-      const qty = parseInt(input.value, 10);
-      if (!btn) return;
-      if (isNaN(qty) || qty < 1 || qty > totalQuantities[id]) {
-        btn.disabled = true;
-      } else {
-        btn.disabled = false;
-      }
+      const qty = parseInt(input.value, 10), totalAdded = getTotalAdded();
+      btn.disabled = isNaN(qty) || qty < 1 || qty > totalQuantities[id] || totalAdded + qty > MAX_ADD;
     }
 
     function renderMaterialsList() {
@@ -66,24 +58,17 @@
       materials.forEach(m => {
         const div = document.createElement('div');
         div.className = 'material-item';
-        div.innerHTML = `
-          <div style="display:flex;align-items:center;">
-            <img src="${m.image}" alt="${m.name}">
-            <span>${m.name} (Inventario: ${totalQuantities[m.id]})</span>
-          </div>
-          <div>
-            <input type="number" min="1" value="1" class="qty-input" data-id="${m.id}">
-            <button class="add-btn" data-id="${m.id}">Añadir</button>
-          </div>
-        `;
+        div.innerHTML = `<div style="display:flex;align-items:center;"><img src="${m.image}" width="32" height="32" alt="${m.name}"><span>${m.name} (Inv: ${totalQuantities[m.id]})</span></div>
+                         <div><input type="number" min="1" value="1" class="qty-input" data-id="${m.id}">
+                         <button class="add-btn" data-id="${m.id}">Añadir</button></div>`;
         const input = div.querySelector('input');
         const button = div.querySelector('button');
         input.addEventListener('input', () => updateAddButton(m.id));
         button.addEventListener('click', () => {
-          const qty = parseInt(input.value, 10);
-          if (qty > 0 && qty <= totalQuantities[m.id]) {
-            totalQuantities[m.id] -= qty;
-            addedQuantities[m.id] += qty;
+          const q = parseInt(input.value, 10);
+          if (q >= 1 && q <= totalQuantities[m.id] && getTotalAdded() + q <= MAX_ADD) {
+            totalQuantities[m.id] -= q;
+            addedQuantities[m.id] += q;
             renderMaterialsList();
             renderAddedList();
           }
@@ -94,42 +79,32 @@
     }
 
     function renderAddedList() {
-      const container = document.getElementById('added-list');
-      container.innerHTML = '<h3>Materiales Añadidos</h3>';
+      const container = document.getElementById('added-list'), totalAdded = getTotalAdded();
+      container.innerHTML = `<h3>Materiales Añadidos (${totalAdded}/3)</h3>`;
       materials.forEach(m => {
         if (addedQuantities[m.id] > 0) {
           const div = document.createElement('div');
           div.className = 'added-item';
-          div.innerHTML = `
-            <div style="display:flex;align-items:center;">
-              <img src="${m.image}" alt="${m.name}">
-              <span>${m.name} x ${addedQuantities[m.id]}</span>
-            </div>
-          `;
+          div.innerHTML = `<div style="display:flex;align-items:center;"><img src="${m.image}" width="32" height="32"><span>${m.name} x ${addedQuantities[m.id]}</span></div>`;
           container.appendChild(div);
         }
       });
     }
 
     document.getElementById('merge-btn').addEventListener('click', () => {
-      const used = Object.keys(addedQuantities).filter(id => addedQuantities[id] > 0);
-      if (used.length === 0) {
+      if (getTotalAdded() === 0) {
         alert('Añade materiales primero.');
         return;
       }
-      // Clear used added quantities
-      used.forEach(id => { addedQuantities[id] = 0; });
-      // Generate 3 units of a random material as result
-      const random = materials[Math.floor(Math.random() * materials.length)];
-      totalQuantities[random.id] += 3;
-      // Display result
+      Object.keys(addedQuantities).forEach(k => addedQuantities[k] = 0);
+      const rand = materials[Math.floor(Math.random() * materials.length)];
+      totalQuantities[rand.id] += 3;
+      const newContainer = document.getElementById('new-materials');
+      newContainer.innerHTML = '<h3>Material Nuevo</h3>';
       const nmDiv = document.createElement('div');
       nmDiv.className = 'new-material';
-      nmDiv.innerHTML = `
-        <img src="${random.image}" alt="${random.name}">
-        <span>Material Nuevo: ${random.name} x 3</span>
-      `;
-      document.getElementById('new-materials').appendChild(nmDiv);
+      nmDiv.innerHTML = `<img src="${rand.image}" width="32" height="32"><span>Material Nuevo: ${rand.name} x 3</span>`;
+      newContainer.appendChild(nmDiv);
       renderMaterialsList();
       renderAddedList();
     });
