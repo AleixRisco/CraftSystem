@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Prototipo Crafting v.1</title>
+  <title>Prototipo Crafting v.2</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     .version-label { font-size: 14px; margin-bottom: 10px; color: #666; }
@@ -10,6 +10,9 @@
     #materials-list, #added-list { border: 1px solid #ccc; padding: 10px; }
     .material-item, .added-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .material-item img, .added-item img { width: 32px; height: 32px; margin-right: 10px; }
+    input.qty-input { width: 50px; margin-right: 5px; }
+    button.add-btn:enabled { background-color: orange; color: white; border: none; padding: 5px 10px; cursor: pointer; }
+    button.add-btn:disabled { background-color: #ccc; color: #666; border: none; padding: 5px 10px; }
     #merge-btn { margin-top: 20px; padding: 8px 16px; font-size: 16px; }
     #new-materials { margin-top: 30px; }
     .new-material { display: flex; align-items: center; margin-bottom: 10px; }
@@ -25,7 +28,9 @@
   <button id="merge-btn">Fusionar</button>
   <div id="new-materials"><h3>Material Nuevo</h3></div>
   <script>
-    document.getElementById('versionLabel').textContent = 'v.1 | ' + new Date().toLocaleString('es-ES');
+    // Set version label with timestamp
+    document.getElementById('versionLabel').textContent = 'v.2 | ' + new Date().toLocaleString('es-ES');
+
     const totalQuantities = {};
     const addedQuantities = {};
     let materials = [];
@@ -33,12 +38,26 @@
     async function loadMaterials() {
       const ids = await fetch('data/materials.json').then(r => r.json());
       materials = await Promise.all(ids.map(id => fetch(`data/material_${id}.json`).then(r => r.json())));
+      // Load player inventory
+      const playerData = await fetch('data/player-data.json').then(r => r.json());
       materials.forEach(m => {
-        totalQuantities[m.id] = 0;
+        totalQuantities[m.id] = playerData[m.id] || 0;
         addedQuantities[m.id] = 0;
       });
       renderMaterialsList();
       renderAddedList();
+    }
+
+    function updateAddButton(id) {
+      const input = document.querySelector(`input.qty-input[data-id="${id}"]`);
+      const btn = document.querySelector(`button.add-btn[data-id="${id}"]`);
+      const qty = parseInt(input.value, 10);
+      if (!btn) return;
+      if (isNaN(qty) || qty < 1 || qty > totalQuantities[id]) {
+        btn.disabled = true;
+      } else {
+        btn.disabled = false;
+      }
     }
 
     function renderMaterialsList() {
@@ -50,18 +69,27 @@
         div.innerHTML = `
           <div style="display:flex;align-items:center;">
             <img src="${m.image}" alt="${m.name}">
-            <span>${m.name} (Total: ${totalQuantities[m.id]})</span>
+            <span>${m.name} (Inventario: ${totalQuantities[m.id]})</span>
           </div>
-          <button data-id="${m.id}">Añadir</button>
+          <div>
+            <input type="number" min="1" value="1" class="qty-input" data-id="${m.id}">
+            <button class="add-btn" data-id="${m.id}">Añadir</button>
+          </div>
         `;
-        div.querySelector('button').addEventListener('click', () => {
-          const qty = parseInt(prompt('Cantidad a añadir:', '1'));
-          if (!isNaN(qty) && qty > 0) {
+        const input = div.querySelector('input');
+        const button = div.querySelector('button');
+        input.addEventListener('input', () => updateAddButton(m.id));
+        button.addEventListener('click', () => {
+          const qty = parseInt(input.value, 10);
+          if (qty > 0 && qty <= totalQuantities[m.id]) {
+            totalQuantities[m.id] -= qty;
             addedQuantities[m.id] += qty;
+            renderMaterialsList();
             renderAddedList();
           }
         });
         container.appendChild(div);
+        updateAddButton(m.id);
       });
     }
 
@@ -84,24 +112,26 @@
     }
 
     document.getElementById('merge-btn').addEventListener('click', () => {
-      const merged = materials.filter(m => addedQuantities[m.id] > 0);
-      if (merged.length === 0) {
+      const used = Object.keys(addedQuantities).filter(id => addedQuantities[id] > 0);
+      if (used.length === 0) {
         alert('Añade materiales primero.');
         return;
       }
-      const totalQty = merged.reduce((sum, m) => sum + addedQuantities[m.id], 0);
-      const names = merged.map(m => m.name).join(' + ');
-      const imgSrc = merged[0].image;
-      totalQuantities[merged[0].id] += totalQty;
+      // Clear used added quantities
+      used.forEach(id => { addedQuantities[id] = 0; });
+      // Generate 3 units of a random material as result
+      const random = materials[Math.floor(Math.random() * materials.length)];
+      totalQuantities[random.id] += 3;
+      // Display result
       const nmDiv = document.createElement('div');
       nmDiv.className = 'new-material';
-      nmDiv.innerHTML = `<img src="${imgSrc}" alt="Fusion">
-                         <span>Material Nuevo: ${names} x ${totalQty}</span>`;
+      nmDiv.innerHTML = `
+        <img src="${random.image}" alt="${random.name}">
+        <span>Material Nuevo: ${random.name} x 3</span>
+      `;
       document.getElementById('new-materials').appendChild(nmDiv);
-      // Reset added
-      merged.forEach(m => addedQuantities[m.id] = 0);
-      renderAddedList();
       renderMaterialsList();
+      renderAddedList();
     });
 
     window.addEventListener('DOMContentLoaded', loadMaterials);
