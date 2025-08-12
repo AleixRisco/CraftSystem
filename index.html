@@ -28,7 +28,7 @@
   <button id="merge-btn">Fusionar</button>
   <div id="new-materials"><h3>Material Nuevo</h3></div>
   <script>
-    const MAX_ADD = 3;
+    const MAX_ADD = 4;
     const totalQuantities = {}, addedQuantities = {};
     let materials = [];
 
@@ -80,7 +80,7 @@
 
     function renderAddedList() {
       const container = document.getElementById('added-list'), totalAdded = getTotalAdded();
-      container.innerHTML = `<h3>Materiales Añadidos (${totalAdded}/3)</h3>`;
+      container.innerHTML = `<h3>Materiales Añadidos (${totalAdded}/${MAX_ADD})</h3>`;
       materials.forEach(m => {
         if (addedQuantities[m.id] > 0) {
           const div = document.createElement('div');
